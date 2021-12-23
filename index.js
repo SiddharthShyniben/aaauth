@@ -117,4 +117,29 @@ export default function (config) {
 
 		res.status(200).json({accessToken, refreshToken});
 	});
+
+	const secureMiddleware = (req, res, next) => {
+		const {accessToken} = req.body;
+
+		if (!accessToken) res.status(400).json({error: 'Missing accessToken'});
+
+		let decoded;
+
+		try {
+			decoded = jwt.verify(accessToken, config.jwtSecret);
+		} catch (e) {
+			res.status(401).json({error: 'Invalid accessToken'});
+		}
+
+		const user = await config.getUser(decoded);
+
+		if (!user) {
+			res.status(404).json({error: 'User not found'});
+		}
+
+		req.user = user;
+		next();
+	};
+
+	return {router, secureMiddleware};
 }
