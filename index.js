@@ -1,6 +1,6 @@
-const express = require('express');
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
+import express from 'express';
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcrypt';
 
 const router = express.Router();
 
@@ -20,8 +20,14 @@ const DEFAULT_CONFIG = {
 	async getUser(data) {
 		throw new Error('getUser must be implemented');
 	},
-	async storeRefreshToken(data, refreshToken) {
+	async storeRefreshToken(refreshToken, data) {
 		throw new Error('storeRefreshToken must be implemented');
+	},
+	async refreshTokenExists(refreshToken) {
+		throw new Error('refreshTokenExists must be implemented');
+	},
+	async invalidateRefreshToken(refreshToken) {
+		throw new Error('invalidateRefreshToken must be implemented');
 	},
 };
 
@@ -33,14 +39,22 @@ export default function (config) {
 	config = Object.assign(DEFAULT_CONFIG, config);
 
 	// Signup
-	router.post('/signup', (req, res) => {
-		config.userFields.forEach(field => {
+	router.post('/signup', async (req, res) => {
+		let shouldBreak = false;
+		['username', 'password', ...config.userFields].every(field => {
 			if (!req.body[field]) {
 				res.status(400).json({
 					error: `Missing field: ${field}`
 				});
+				return false;
+				shouldBreak = true;
 			}
+			return true;
 		});
+
+		if (shouldBreak) {
+			return;
+		}
 
 		const data = ['username', 'password', ...config.userFields].reduce((acc, field) => {
 			acc[field] = req.body[field];
@@ -48,31 +62,32 @@ export default function (config) {
 		}, {});
 
 		if (await config.userExists(data)) {
-			res.status(409).json({
+			return res.status(409).json({
 				error: 'user already exists'
 			});
 		}
 
+		console.log(data);
 		data.password = await bcrypt.hash(data.password, 10);
 
 		const user = await config.createUser(data);
 		res.status(201).json(user);
 	});
 
-	router.post('/login', (req, res) => {
+	router.post('/login', async (req, res) => {
 		const {username, password} = req.body;
 
-		if (!username) res.status(400).json({error: 'Missing username'});
-		if (!password) res.status(400).json({error: 'Missing password'});
+		if (!username) return res.status(400).json({error: 'Missing username'});
+		if (!password) return res.status(400).json({error: 'Missing password'});
 
 		if (await config.userDoesNotExist({username})) {
-			res.status(404).json({error: 'User not found'});
+			return res.status(404).json({error: 'User not found'});
 		}
 
 		const user = await config.getUser({username});
 
 		if (!(await bcrypt.compare(password, user.password))) {
-			res.status(401).json({error: 'Invalid password'});
+			return res.status(401).json({error: 'Invalid password'});
 		}
 
 		const jwtData = ['username', ...config.jwtFields].reduce((acc, field) => {
@@ -82,20 +97,20 @@ export default function (config) {
 
 		const accessToken = jwt.sign(jwtData, config.jwtSecret, {expiresIn: '1h'});
 		const refreshToken = jwt.sign(jwtData, config.jwtSecret, {expiresIn: '7d'});
-		await storeRefreshToken(refreshToken, user);
+		await config.storeRefreshToken(refreshToken, user);
 
 		res.status(200).json({accessToken, refreshToken});
 	});
 
-	router.post('/token', (req, res) => {
-		const {refreshToken} = req.body;
+	router.post('/token', async (req, res) => {
+		const {refreshToken: recievedToken} = req.body;
 
-		if (!refreshToken) res.status(400).json({error: 'Missing refreshToken'});
+		if (!recievedToken) res.status(400).json({error: 'Missing refreshToken'});
 
 		let decoded;
 
 		try {
-			decoded = jwt.verify(refreshToken, config.jwtSecret);
+			decoded = jwt.verify(recievedToken, config.jwtSecret);
 		} catch (e) {
 			res.status(401).json({error: 'Invalid refreshToken'});
 		}
@@ -113,33 +128,34 @@ export default function (config) {
 
 		const accessToken = jwt.sign(jwtData, config.jwtSecret, {expiresIn: '1h'});
 		const refreshToken = jwt.sign(jwtData, config.jwtSecret, {expiresIn: '7d'});
-		await storeRefreshToken(refreshToken, user);
+		await config.storeRefreshToken(refreshToken, user);
 
 		res.status(200).json({accessToken, refreshToken});
 	});
 
-	const secureMiddleware = (req, res, next) => {
-		const {accessToken} = req.body;
+	const authenticate = async (req, res, next) => {
+		console.log(req.query);
+		const {accessToken} = req.query;
 
-		if (!accessToken) res.status(400).json({error: 'Missing accessToken'});
+		if (!accessToken) return res.status(400).json({error: 'Missing accessToken'});
 
 		let decoded;
 
 		try {
 			decoded = jwt.verify(accessToken, config.jwtSecret);
 		} catch (e) {
-			res.status(401).json({error: 'Invalid accessToken'});
+			return res.status(401).json({error: 'Invalid accessToken'});
 		}
 
 		const user = await config.getUser(decoded);
 
 		if (!user) {
-			res.status(404).json({error: 'User not found'});
+			return res.status(404).json({error: 'User not found'});
 		}
 
 		req.user = user;
 		next();
 	};
 
-	return {router, secureMiddleware};
+	return {router, authenticate};
 }
