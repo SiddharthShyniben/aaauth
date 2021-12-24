@@ -6,7 +6,7 @@ aaauth is a simple, opinionated, auth library. It provides a router and a middle
 
 ```js
 import express from 'express';
-import Aaauth from './index.js';
+import Aaauth from 'aaauth';
 
 import {createUser, userExists, getUser, storeRefreshToken, refreshTokenExists, invalidateRefreshToken} from './db.js';
 
