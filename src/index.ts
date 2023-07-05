@@ -19,7 +19,7 @@ type Config = {
 	getUser: (user: Partial<User>) => Promise<User>,
 	storeRefreshToken: (token: string, user: User) => Promise<void>,
 	refreshTokenExists: (user: User) => Promise<boolean>,
-	invalidateRefreshToken: (token: string) => Promise<void>,
+	invalidateRefreshToken: (token: string, user: User) => Promise<void>,
 }
 
 const DEFAULT_CONFIG: Partial<Config> = {
@@ -39,18 +39,13 @@ export default function (config: Config) {
 	router.post('/signup', async (req, res) => {
 		if (!['username', 'password', ...config.userFields].every(field => {
 			if (!req.body[field]) {
-				res.status(400).json({
-					error: `Missing field: ${field}`
-				});
+				res.status(400).json({error: `Missing field: ${field}`});
 				return false;
 			}
 			return true;
 		})) return;
 
-		const data = ['username', 'password', ...config.userFields].reduce((acc: Partial<User>, field: string) => {
-			acc[field] = req.body[field];
-			return acc;
-		}, {}) as User;
+		const data = accumulateProps<User>(['username', 'password', ...config.userFields], req.body)
 
 		if (await config.userExists(data)) {
 			return res.status(409).json({error: 'user already exists'});
@@ -78,14 +73,11 @@ export default function (config: Config) {
 			return res.status(401).json({error: 'Invalid password'});
 		}
 
-		const jwtData = ['username', ...config.jwtFields].reduce((acc: Partial<User>, field) => {
-			acc[field] = user[field];
-			return acc;
-		}, {});
-
+		const jwtData = accumulateProps<Partial<User>>(['username', ...config.jwtFields], user)
 		const accessToken = jwt.sign(jwtData, config.jwtSecret, {expiresIn: '1h'});
 		const refreshToken = jwt.sign(jwtData, config.jwtSecret, {expiresIn: '7d'});
 		await config.storeRefreshToken(refreshToken, user);
+		await config.invalidateRefreshToken(refreshToken, user);
 
 		res.status(200).json({accessToken, refreshToken});
 	});
@@ -109,11 +101,7 @@ export default function (config: Config) {
 			res.status(404).json({error: 'User not found'});
 		}
 
-		const jwtData = ['username', ...config.jwtFields].reduce((acc: Partial<User>, field) => {
-			acc[field] = user[field];
-			return acc;
-		}, {});
-
+		const jwtData = accumulateProps<Partial<User>>(['username', ...config.jwtFields], user);
 		const accessToken = jwt.sign(jwtData, config.jwtSecret, {expiresIn: '1h'});
 		const refreshToken = jwt.sign(jwtData, config.jwtSecret, {expiresIn: '7d'});
 		await config.storeRefreshToken(refreshToken, user);
@@ -145,4 +133,11 @@ export default function (config: Config) {
 	};
 
 	return {router, authenticate};
+}
+
+function accumulateProps<T extends Record<string, string>>(props: string[], otherObj: Record<string, any>): T {
+	return props.reduce((acc: Record<string, any>, field: string) => {
+		acc[field] = otherObj[field];
+		return acc;
+	}, {}) as T;
 }
