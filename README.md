@@ -24,7 +24,7 @@ app.get('/', (req, res) => { // Normal route
 });
 
 app.get('/secure', aaauth.authenticate, (req, res) => { // Secure route: needs access token
-	res.send('Hello World!');
+	res.send(`Hello, ${req.user.username}!`);
 });
 
 app.listen(3000, () => {
@@ -34,10 +34,10 @@ app.listen(3000, () => {
 
 ## Features
 
-- Small: just around 150 lines of code
+- Small: less than 150 lines of code
 - Simple: just `app.use(aaauth.router)` and your router is up
 - Uses JWT and supports access tokens and refresh tokens
-		- Partially supports RTR
+	- Partially supports RTR
 
 ## Docs
 
@@ -49,9 +49,9 @@ The aaauth library exposes a single function: `Aaauth`. This function takes an o
  * `createUser(user: {username: string, password: string, ...other details})`: A function which creates a user.
  * `userExists(user: {username: string})`: A function which checks if a user exists.
  * `getUser(user: {username: string})`: A function which gets a user.
- * `storeRefreshToken(token: string)`: A function which stores a refresh token.
+ * `storeRefreshToken(token: string, user: {username: string, password: string, ...other details})`: A function which stores a refresh token.
  * `refreshTokenExists(token: string)`: A function which checks if a refresh token exists.
- * `invalidateRefreshToken(token: string)`: A function which invalidates a refresh token.
+ * `invalidateRefreshToken(token: string, user: {username: string, password: string, ...other details})`: A function which invalidates a refresh token.
 
 The `Aaauth` function returns an object with the following properties:
 
