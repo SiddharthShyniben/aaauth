@@ -11,22 +11,22 @@ const DEFAULT_CONFIG = {
 	async createUser() {
 		throw new Error('createUser must be implemented');
 	},
-	async userExists(data) {
+	async userExists() {
 		throw new Error('userExists must be implemented');
 	},
 	async userDoesNotExist(data) {
 		return !(await this.userExists(data));
 	},
-	async getUser(data) {
+	async getUser() {
 		throw new Error('getUser must be implemented');
 	},
-	async storeRefreshToken(refreshToken, data) {
+	async storeRefreshToken() {
 		throw new Error('storeRefreshToken must be implemented');
 	},
-	async refreshTokenExists(refreshToken) {
+	async refreshTokenExists() {
 		throw new Error('refreshTokenExists must be implemented');
 	},
-	async invalidateRefreshToken(refreshToken) {
+	async invalidateRefreshToken() {
 		throw new Error('invalidateRefreshToken must be implemented');
 	},
 };
@@ -40,21 +40,15 @@ export default function (config) {
 
 	// Signup
 	router.post('/signup', async (req, res) => {
-		let shouldBreak = false;
-		['username', 'password', ...config.userFields].every(field => {
+		if (!['username', 'password', ...config.userFields].every(field => {
 			if (!req.body[field]) {
 				res.status(400).json({
 					error: `Missing field: ${field}`
 				});
 				return false;
-				shouldBreak = true;
 			}
 			return true;
-		});
-
-		if (shouldBreak) {
-			return;
-		}
+		})) return;
 
 		const data = ['username', 'password', ...config.userFields].reduce((acc, field) => {
 			acc[field] = req.body[field];
@@ -62,12 +56,9 @@ export default function (config) {
 		}, {});
 
 		if (await config.userExists(data)) {
-			return res.status(409).json({
-				error: 'user already exists'
-			});
+			return res.status(409).json({error: 'user already exists'});
 		}
 
-		console.log(data);
 		data.password = await bcrypt.hash(data.password, 10);
 
 		const user = await config.createUser(data);
@@ -134,7 +125,6 @@ export default function (config) {
 	});
 
 	const authenticate = async (req, res, next) => {
-		console.log(req.query);
 		const {accessToken} = req.query;
 
 		if (!accessToken) return res.status(400).json({error: 'Missing accessToken'});
