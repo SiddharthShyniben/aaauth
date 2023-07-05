@@ -1,41 +1,38 @@
 import express from 'express';
-import jwt from 'jsonwebtoken';
+import jwt, { JwtPayload } from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 
 const router = express.Router();
 
-const DEFAULT_CONFIG = {
+type User = {
+	username: string,
+	password: string,
+	[key: string]: any,
+}
+
+type Config = {
+	userFields: string[],
+	jwtFields: string[],
+	jwtSecret: string,
+	createUser: (user: User) => Promise<User>,
+	userExists: (user: Partial<User>) => Promise<boolean>,
+	getUser: (user: Partial<User>) => Promise<User>,
+	storeRefreshToken: (token: string, user: User) => Promise<void>,
+	refreshTokenExists: (user: User) => Promise<boolean>,
+	invalidateRefreshToken: (token: string) => Promise<void>,
+}
+
+const DEFAULT_CONFIG: Partial<Config> = {
 	userFields: [],
 	jwtFields: ['username'],
 	jwtSecret: 'THIS_SECRET_IS_NOT_SECURE_AT_ALL',
-	async createUser() {
-		throw new Error('createUser must be implemented');
-	},
-	async userExists() {
-		throw new Error('userExists must be implemented');
-	},
-	async userDoesNotExist(data) {
-		return !(await this.userExists(data));
-	},
-	async getUser() {
-		throw new Error('getUser must be implemented');
-	},
-	async storeRefreshToken() {
-		throw new Error('storeRefreshToken must be implemented');
-	},
-	async refreshTokenExists() {
-		throw new Error('refreshTokenExists must be implemented');
-	},
-	async invalidateRefreshToken() {
-		throw new Error('invalidateRefreshToken must be implemented');
-	},
 };
 
 /* TODO:
  * - safer refresh tokens: RTR family
  */
 
-export default function (config) {
+export default function (config: Config) {
 	config = Object.assign(DEFAULT_CONFIG, config);
 
 	// Signup
@@ -50,10 +47,10 @@ export default function (config) {
 			return true;
 		})) return;
 
-		const data = ['username', 'password', ...config.userFields].reduce((acc, field) => {
+		const data = ['username', 'password', ...config.userFields].reduce((acc: Partial<User>, field: string) => {
 			acc[field] = req.body[field];
 			return acc;
-		}, {});
+		}, {}) as User;
 
 		if (await config.userExists(data)) {
 			return res.status(409).json({error: 'user already exists'});
@@ -71,7 +68,7 @@ export default function (config) {
 		if (!username) return res.status(400).json({error: 'Missing username'});
 		if (!password) return res.status(400).json({error: 'Missing password'});
 
-		if (await config.userDoesNotExist({username})) {
+		if (!(await config.userExists({username}))) {
 			return res.status(404).json({error: 'User not found'});
 		}
 
@@ -81,7 +78,7 @@ export default function (config) {
 			return res.status(401).json({error: 'Invalid password'});
 		}
 
-		const jwtData = ['username', ...config.jwtFields].reduce((acc, field) => {
+		const jwtData = ['username', ...config.jwtFields].reduce((acc: Partial<User>, field) => {
 			acc[field] = user[field];
 			return acc;
 		}, {});
@@ -103,16 +100,16 @@ export default function (config) {
 		try {
 			decoded = jwt.verify(recievedToken, config.jwtSecret);
 		} catch (e) {
-			res.status(401).json({error: 'Invalid refreshToken'});
+			return res.status(401).json({error: 'Invalid refreshToken'});
 		}
 
-		const user = await config.getUser(decoded);
+		const user = await config.getUser(decoded as JwtPayload); // ??
 
 		if (!user) {
 			res.status(404).json({error: 'User not found'});
 		}
 
-		const jwtData = ['username', ...config.jwtFields].reduce((acc, field) => {
+		const jwtData = ['username', ...config.jwtFields].reduce((acc: Partial<User>, field) => {
 			acc[field] = user[field];
 			return acc;
 		}, {});
@@ -124,7 +121,7 @@ export default function (config) {
 		res.status(200).json({accessToken, refreshToken});
 	});
 
-	const authenticate = async (req, res, next) => {
+	const authenticate = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
 		const {accessToken} = req.query;
 
 		if (!accessToken) return res.status(400).json({error: 'Missing accessToken'});
@@ -132,18 +129,18 @@ export default function (config) {
 		let decoded;
 
 		try {
-			decoded = jwt.verify(accessToken, config.jwtSecret);
+			decoded = jwt.verify(accessToken.toString(), config.jwtSecret);
 		} catch (e) {
 			return res.status(401).json({error: 'Invalid accessToken'});
 		}
 
-		const user = await config.getUser(decoded);
+		const user = await config.getUser(decoded as JwtPayload);
 
 		if (!user) {
 			return res.status(404).json({error: 'User not found'});
 		}
 
-		req.user = user;
+		(req as any).user = user;
 		next();
 	};
 

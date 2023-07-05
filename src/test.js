@@ -17,7 +17,7 @@ const aaauth = Aaauth({
 	async getUser(user) {
 		return db.users.find(u => u.username === user.username);
 	},
-	async storeRefreshToken(user, token) {
+	async storeRefreshToken(token, user) {
 		db.refreshTokens.push({
 			user,
 			token

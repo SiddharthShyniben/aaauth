@@ -3,13 +3,16 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc"
   },
   "dependencies": {
     "bcrypt": "^5.0.1",
     "express": "^4.17.2",
     "jsonwebtoken": "^8.5.1"
   },
+  "files": [
+    "lib/**/*"
+  ],
   "author": "SiddharthShyniben <siddharth.muscat@gmail.com>",
   "type": "module",
   "keywords": [
@@ -24,5 +27,11 @@
   "bugs": {
     "url": "https://github.com/SiddharthShyniben/aaauth/issues"
   },
-  "homepage": "https://github.com/SiddharthShyniben/aaauth#readme"
+  "homepage": "https://github.com/SiddharthShyniben/aaauth#readme",
+  "devDependencies": {
+    "@types/bcrypt": "^5.0.0",
+    "@types/express": "^4.17.17",
+    "@types/jsonwebtoken": "^9.0.2",
+    "typescript": "^5.1.6"
+  }
 }
