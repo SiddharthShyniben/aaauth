@@ -1,4 +1,3 @@
-"use strict";
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -8,14 +7,10 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = __importDefault(require("express"));
-const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
-const bcrypt_1 = __importDefault(require("bcrypt"));
-const router = express_1.default.Router();
+import express from 'express';
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcrypt';
+const router = express.Router();
 const DEFAULT_CONFIG = {
     userFields: [],
     jwtFields: ['username'],
@@ -24,7 +19,7 @@ const DEFAULT_CONFIG = {
 /* TODO:
  * - safer refresh tokens: RTR family
  */
-function default_1(config) {
+export default function (config) {
     config = Object.assign(DEFAULT_CONFIG, config);
     // Signup
     router.post('/signup', (req, res) => __awaiter(this, void 0, void 0, function* () {
@@ -40,7 +35,7 @@ function default_1(config) {
         if (yield config.userExists(data)) {
             return res.status(409).json({ error: 'user already exists' });
         }
-        data.password = yield bcrypt_1.default.hash(data.password, 10);
+        data.password = yield bcrypt.hash(data.password, 10);
         const user = yield config.createUser(data);
         res.status(201).json(user);
     }));
@@ -54,12 +49,12 @@ function default_1(config) {
             return res.status(404).json({ error: 'User not found' });
         }
         const user = yield config.getUser({ username });
-        if (!(yield bcrypt_1.default.compare(password, user.password))) {
+        if (!(yield bcrypt.compare(password, user.password))) {
             return res.status(401).json({ error: 'Invalid password' });
         }
         const jwtData = accumulateProps(['username', ...config.jwtFields], user);
-        const accessToken = jsonwebtoken_1.default.sign(jwtData, config.jwtSecret, { expiresIn: '1h' });
-        const refreshToken = jsonwebtoken_1.default.sign(jwtData, config.jwtSecret, { expiresIn: '7d' });
+        const accessToken = jwt.sign(jwtData, config.jwtSecret, { expiresIn: '1h' });
+        const refreshToken = jwt.sign(jwtData, config.jwtSecret, { expiresIn: '7d' });
         yield config.storeRefreshToken(refreshToken, user);
         yield config.invalidateRefreshToken(refreshToken, user);
         res.status(200).json({ accessToken, refreshToken });
@@ -70,7 +65,7 @@ function default_1(config) {
             res.status(400).json({ error: 'Missing refreshToken' });
         let decoded;
         try {
-            decoded = jsonwebtoken_1.default.verify(recievedToken, config.jwtSecret);
+            decoded = jwt.verify(recievedToken, config.jwtSecret);
         }
         catch (e) {
             return res.status(401).json({ error: 'Invalid refreshToken' });
@@ -80,8 +75,8 @@ function default_1(config) {
             res.status(404).json({ error: 'User not found' });
         }
         const jwtData = accumulateProps(['username', ...config.jwtFields], user);
-        const accessToken = jsonwebtoken_1.default.sign(jwtData, config.jwtSecret, { expiresIn: '1h' });
-        const refreshToken = jsonwebtoken_1.default.sign(jwtData, config.jwtSecret, { expiresIn: '7d' });
+        const accessToken = jwt.sign(jwtData, config.jwtSecret, { expiresIn: '1h' });
+        const refreshToken = jwt.sign(jwtData, config.jwtSecret, { expiresIn: '7d' });
         yield config.storeRefreshToken(refreshToken, user);
         res.status(200).json({ accessToken, refreshToken });
     }));
@@ -91,7 +86,7 @@ function default_1(config) {
             return res.status(400).json({ error: 'Missing accessToken' });
         let decoded;
         try {
-            decoded = jsonwebtoken_1.default.verify(accessToken.toString(), config.jwtSecret);
+            decoded = jwt.verify(accessToken.toString(), config.jwtSecret);
         }
         catch (e) {
             return res.status(401).json({ error: 'Invalid accessToken' });
@@ -105,7 +100,6 @@ function default_1(config) {
     });
     return { router, authenticate };
 }
-exports.default = default_1;
 function accumulateProps(props, otherObj) {
     return props.reduce((acc, field) => {
         acc[field] = otherObj[field];
