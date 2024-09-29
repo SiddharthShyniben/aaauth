@@ -1,7 +1,7 @@
 {
   "name": "aaauth",
   "version": "1.3.2",
-  "main": "lib/index.js",
+  "main": "src/index.js",
   "scripts": {
     "build": "tsc"
   },
@@ -11,7 +11,7 @@
     "jsonwebtoken": "^8.5.1"
   },
   "files": [
-    "lib/**/*"
+    "src/**/*"
   ],
   "author": "SiddharthShyniben <siddharth.muscat@gmail.com>",
   "type": "module",
