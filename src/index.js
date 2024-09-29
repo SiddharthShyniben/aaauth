@@ -20,41 +20,6 @@ const DEFAULT_CONFIG = {
     userFields: [],
     jwtFields: ['username'],
     jwtSecret: 'THIS_SECRET_IS_NOT_SECURE_AT_ALL',
-    createUser() {
-        return __awaiter(this, void 0, void 0, function* () {
-            throw new Error('createUser must be implemented');
-        });
-    },
-    userExists() {
-        return __awaiter(this, void 0, void 0, function* () {
-            throw new Error('userExists must be implemented');
-        });
-    },
-    userDoesNotExist(data) {
-        return __awaiter(this, void 0, void 0, function* () {
-            return !(yield this.userExists(data));
-        });
-    },
-    getUser() {
-        return __awaiter(this, void 0, void 0, function* () {
-            throw new Error('getUser must be implemented');
-        });
-    },
-    storeRefreshToken() {
-        return __awaiter(this, void 0, void 0, function* () {
-            throw new Error('storeRefreshToken must be implemented');
-        });
-    },
-    refreshTokenExists() {
-        return __awaiter(this, void 0, void 0, function* () {
-            throw new Error('refreshTokenExists must be implemented');
-        });
-    },
-    invalidateRefreshToken() {
-        return __awaiter(this, void 0, void 0, function* () {
-            throw new Error('invalidateRefreshToken must be implemented');
-        });
-    },
 };
 /* TODO:
  * - safer refresh tokens: RTR family
@@ -65,18 +30,13 @@ function default_1(config) {
     router.post('/signup', (req, res) => __awaiter(this, void 0, void 0, function* () {
         if (!['username', 'password', ...config.userFields].every(field => {
             if (!req.body[field]) {
-                res.status(400).json({
-                    error: `Missing field: ${field}`
-                });
+                res.status(400).json({ error: `Missing field: ${field}` });
                 return false;
             }
             return true;
         }))
             return;
-        const data = ['username', 'password', ...config.userFields].reduce((acc, field) => {
-            acc[field] = req.body[field];
-            return acc;
-        }, {});
+        const data = accumulateProps(['username', 'password', ...config.userFields], req.body);
         if (yield config.userExists(data)) {
             return res.status(409).json({ error: 'user already exists' });
         }
@@ -90,20 +50,18 @@ function default_1(config) {
             return res.status(400).json({ error: 'Missing username' });
         if (!password)
             return res.status(400).json({ error: 'Missing password' });
-        if (yield config.userDoesNotExist({ username })) {
+        if (!(yield config.userExists({ username }))) {
             return res.status(404).json({ error: 'User not found' });
         }
         const user = yield config.getUser({ username });
         if (!(yield bcrypt_1.default.compare(password, user.password))) {
             return res.status(401).json({ error: 'Invalid password' });
         }
-        const jwtData = ['username', ...config.jwtFields].reduce((acc, field) => {
-            acc[field] = user[field];
-            return acc;
-        }, {});
+        const jwtData = accumulateProps(['username', ...config.jwtFields], user);
         const accessToken = jsonwebtoken_1.default.sign(jwtData, config.jwtSecret, { expiresIn: '1h' });
         const refreshToken = jsonwebtoken_1.default.sign(jwtData, config.jwtSecret, { expiresIn: '7d' });
         yield config.storeRefreshToken(refreshToken, user);
+        yield config.invalidateRefreshToken(refreshToken, user);
         res.status(200).json({ accessToken, refreshToken });
     }));
     router.post('/token', (req, res) => __awaiter(this, void 0, void 0, function* () {
@@ -115,16 +73,13 @@ function default_1(config) {
             decoded = jsonwebtoken_1.default.verify(recievedToken, config.jwtSecret);
         }
         catch (e) {
-            res.status(401).json({ error: 'Invalid refreshToken' });
+            return res.status(401).json({ error: 'Invalid refreshToken' });
         }
-        const user = yield config.getUser(decoded);
+        const user = yield config.getUser(decoded); // ??
         if (!user) {
             res.status(404).json({ error: 'User not found' });
         }
-        const jwtData = ['username', ...config.jwtFields].reduce((acc, field) => {
-            acc[field] = user[field];
-            return acc;
-        }, {});
+        const jwtData = accumulateProps(['username', ...config.jwtFields], user);
         const accessToken = jsonwebtoken_1.default.sign(jwtData, config.jwtSecret, { expiresIn: '1h' });
         const refreshToken = jsonwebtoken_1.default.sign(jwtData, config.jwtSecret, { expiresIn: '7d' });
         yield config.storeRefreshToken(refreshToken, user);
@@ -136,7 +91,7 @@ function default_1(config) {
             return res.status(400).json({ error: 'Missing accessToken' });
         let decoded;
         try {
-            decoded = jsonwebtoken_1.default.verify(accessToken, config.jwtSecret);
+            decoded = jsonwebtoken_1.default.verify(accessToken.toString(), config.jwtSecret);
         }
         catch (e) {
             return res.status(401).json({ error: 'Invalid accessToken' });
@@ -151,3 +106,9 @@ function default_1(config) {
     return { router, authenticate };
 }
 exports.default = default_1;
+function accumulateProps(props, otherObj) {
+    return props.reduce((acc, field) => {
+        acc[field] = otherObj[field];
+        return acc;
+    }, {});
+}
