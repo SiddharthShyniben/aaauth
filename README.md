@@ -58,9 +58,9 @@ The `Aaauth` function returns an object with the following properties:
  * `router: Router`: An express router.
  * `authenticate: function`: A middleware function which is used for secure routes.
 
-The router registers 3 routes: `/login`, `/register` and `/token`.
+The router registers 3 routes: `/login`, `/signup` and `/token`.
 
- * `/register`: `POST` to this route with all user data and it will validate it and call the `createUser` function.
+ * `/signup`: `POST` to this route with all user data and it will validate it and call the `createUser` function.
  * `/login`: `POST` to this route with a username and password. It responds with a refresh token and an access token.
  * `/token`: `POST` to this route with a refresh token and it responds with a new access token and refresh token.
 
